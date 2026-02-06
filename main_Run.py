@@ -9,6 +9,9 @@ import pandas as pd
 import datetime
 import time
 
+print("Starting Attendance Management System...")
+print("GUI window should open. If you don't see it, check the Dock or other desktops.")
+
 # Window is our Main frame of system
 window = tk.Tk()
 window.title("Attendance Management System using Face Recognition")
@@ -337,7 +340,7 @@ def take_img():
             Date = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
             Time = datetime.datetime.fromtimestamp(ts).strftime('%H:%M:%S')
             row = [Enrollment, Name, Date, Time]
-            with open('StudentDetails\StudentDetails.csv', 'a+') as csvFile:
+            with open(r'StudentDetails\StudentDetails.csv', 'a+') as csvFile:
                 writer = csv.writer(csvFile, delimiter=',')
                 writer.writerow(row)
                 csvFile.close()
@@ -363,7 +366,7 @@ def subjectchoose():
             else:
                 recognizer = cv2.face.LBPHFaceRecognizer_create()  # cv2.createLBPHFaceRecognizer()
                 try:
-                    recognizer.read("TrainingImageLabel\Trainner.yml")
+                    recognizer.read(r"TrainingImageLabel\Trainner.yml")
                 except:
                     e = 'Model not found,Please train model'
                     Notifica.configure(
@@ -372,7 +375,7 @@ def subjectchoose():
 
                 harcascadePath = "haarcascade_frontalface_default.xml"
                 faceCascade = cv2.CascadeClassifier(harcascadePath)
-                df = pd.read_csv("StudentDetails\StudentDetails.csv")
+                df = pd.read_csv(r"StudentDetails\StudentDetails.csv")
                 cam = cv2.VideoCapture(0)
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 col_names = ['Enrollment', 'Name', 'Date', 'Time']
@@ -665,7 +668,7 @@ def trainimg():
 
     recognizer.train(faces, np.array(Id))
     try:
-        recognizer.save("TrainingImageLabel\Trainner.yml")
+        recognizer.save(r"TrainingImageLabel\Trainner.yml")
     except Exception as e:
         q = 'Please make "TrainingImageLabel" folder'
         Notification.configure(text=q, bg="SpringGreen3",
