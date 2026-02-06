@@ -33,3 +33,11 @@ class Config:
     CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
     CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "")
     CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
+
+    # Face image quality
+    MIN_FACE_SIZE = int(os.getenv("MIN_FACE_SIZE", "80"))  # Minimum face width/height in pixels
+    MIN_LAPLACIAN_VAR = float(os.getenv("MIN_LAPLACIAN_VAR", "80"))  # Blur threshold (higher = sharper)
+
+    # Continuous learning: save attendance face crops for model retraining
+    SAVE_ATTENDANCE_FACES_FOR_TRAINING = os.getenv("SAVE_ATTENDANCE_FACES_FOR_TRAINING", "true").lower() in ("true", "1", "yes")
+    MAX_ATTENDANCE_FACES_PER_STUDENT_PER_DAY = int(os.getenv("MAX_ATTENDANCE_FACES_PER_STUDENT_PER_DAY", "2"))

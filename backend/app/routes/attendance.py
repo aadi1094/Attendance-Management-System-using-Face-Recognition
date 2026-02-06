@@ -1,9 +1,12 @@
 from flask import Blueprint, request, jsonify
 
+from flask import Response
+
 from app.services.attendance_service import (
     recognize_face_and_record,
     record_manual,
     list_attendance,
+    export_attendance_csv,
 )
 
 attendance_bp = Blueprint("attendance", __name__, url_prefix="/api/attendance")
@@ -56,11 +59,47 @@ def manual_attendance():
 
 @attendance_bp.route("", methods=["GET"])
 def get_attendance():
-    """List attendance. Query: subject=, date=, skip=0, limit=100"""
+    """List attendance. Query: subject=, date=, enrollment=, dateFrom=, dateTo=, skip=0, limit=100"""
     subject = request.args.get("subject", "").strip() or None
     date = request.args.get("date", "").strip() or None
+    enrollment = request.args.get("enrollment", "").strip() or None
+    date_from = request.args.get("dateFrom", "").strip() or None
+    date_to = request.args.get("dateTo", "").strip() or None
     skip = max(0, request.args.get("skip", 0, type=int))
-    limit = min(100, max(1, request.args.get("limit", 50, type=int)))
+    limit = min(200, max(1, request.args.get("limit", 100, type=int)))
 
-    result = list_attendance(subject=subject, date=date, skip=skip, limit=limit)
+    result = list_attendance(
+        subject=subject,
+        date=date,
+        enrollment=enrollment,
+        date_from=date_from,
+        date_to=date_to,
+        skip=skip,
+        limit=limit,
+    )
     return jsonify(result)
+
+
+@attendance_bp.route("/export", methods=["GET"])
+def export_attendance():
+    """Export attendance as CSV. Query: subject=, date=, dateFrom=, dateTo=, enrollment="""
+    subject = request.args.get("subject", "").strip() or None
+    date = request.args.get("date", "").strip() or None
+    enrollment = request.args.get("enrollment", "").strip() or None
+    date_from = request.args.get("dateFrom", "").strip() or None
+    date_to = request.args.get("dateTo", "").strip() or None
+    limit = min(10000, max(1, request.args.get("limit", 5000, type=int)))
+
+    csv_content = export_attendance_csv(
+        subject=subject,
+        date=date,
+        enrollment=enrollment,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+    )
+    return Response(
+        csv_content,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=attendance.csv"},
+    )

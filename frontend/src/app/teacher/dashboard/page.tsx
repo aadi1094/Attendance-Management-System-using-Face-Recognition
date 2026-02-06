@@ -9,6 +9,7 @@ import {
   clearAuth,
   listSubjects,
   listAttendance,
+  downloadAttendanceCsv,
   recordManualAttendance,
   recordAutoAttendance,
   getTrainStatus,
@@ -46,7 +47,14 @@ export default function TeacherDashboardPage() {
     }
     setUser(u);
     listSubjects()
-      .then((r) => setSubjects(r.subjects || []))
+      .then((r) => {
+        const all = r.subjects || [];
+        const assignedIds = u.assignedSubjectIds || [];
+        // If teacher has assigned subjects, show only those; else show all (backward compat)
+        const filtered =
+          assignedIds.length > 0 ? all.filter((s) => assignedIds.includes(s.id)) : all;
+        setSubjects(filtered);
+      })
       .catch(() => setSubjects([]));
     getTrainStatus()
       .then((r) => setModelTrained(r.trained))
@@ -113,9 +121,19 @@ export default function TeacherDashboardPage() {
     setSuccess("");
     setLoading(true);
     try {
-      await recordAutoAttendance(imageBase64, autoSubject.trim());
-      setSuccess("Attendance recorded.");
-      toast("Attendance recorded.", "success");
+      const res = await recordAutoAttendance(imageBase64, autoSubject.trim()) as {
+        records?: { name?: string }[];
+        count?: number;
+      };
+      const records = res?.records ?? [];
+      const count = res?.count ?? records.length;
+      const names = records.map((r) => r.name).filter(Boolean).join(", ");
+      const msg =
+        count === 1
+          ? `Attendance recorded for ${names || "1 student"}.`
+          : `Attendance recorded for ${count} students${names ? `: ${names}` : ""}.`;
+      setSuccess(msg);
+      toast(msg, "success");
       if (tab === "view") loadAttendance();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Face recognition failed";
@@ -200,9 +218,25 @@ export default function TeacherDashboardPage() {
                 className="rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
               />
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
               <Button onClick={loadAttendance} disabled={loading}>
                 {loading ? "Loading..." : "Refresh"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    await downloadAttendanceCsv({
+                      subject: subjectFilter || undefined,
+                      date: dateFilter || undefined,
+                    });
+                    toast("CSV downloaded.", "success");
+                  } catch {
+                    toast("Export failed.", "error");
+                  }
+                }}
+              >
+                Export CSV
               </Button>
             </div>
           </div>
@@ -293,8 +327,13 @@ export default function TeacherDashboardPage() {
             </div>
           )}
           <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-            This uses the <strong>trained face recognition model</strong> to identify the student from the camera and record attendance automatically. Select a subject, then have the student look at the camera and click Capture.
+            This uses the <strong>trained face recognition model</strong> to identify students from the camera and record attendance automatically. Select a subject, then have one or more students face the camera and click Capture — multiple students in the same frame will all be marked.
           </p>
+          {subjects.length === 0 && (
+            <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">
+              No subjects available. Add subjects in Admin dashboard, or ask admin to assign subjects to you.
+            </p>
+          )}
           <div className="mb-4">
             <label className="mb-1.5 block text-sm font-medium">Subject</label>
             <select
@@ -318,6 +357,7 @@ export default function TeacherDashboardPage() {
           <WebcamCapture
             onCapture={handleAutoCapture}
             disabled={loading || !autoSubject.trim() || !modelTrained}
+            resolution="hd"
           />
           {!modelTrained && (
             <p className="mt-2 text-sm text-zinc-500">Enable automatic attendance by training the model (Admin).</p>

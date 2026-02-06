@@ -10,9 +10,11 @@ import {
   getStudent,
   uploadFaceImage,
   getTrainStatus,
+  listSubjects,
+  listAttendance,
 } from "@/lib/api";
 
-const MIN_IMAGES = 10;
+const MIN_IMAGES = 15;
 
 export default function StudentDashboardPage() {
   const router = useRouter();
@@ -23,6 +25,16 @@ export default function StudentDashboardPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
+  const [myAttSubject, setMyAttSubject] = useState("");
+  const [myAttDateFrom, setMyAttDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [myAttDateTo, setMyAttDateTo] = useState(new Date().toISOString().slice(0, 10));
+  const [myAttRecords, setMyAttRecords] = useState<{ subject: string; date: string; time: string }[]>([]);
+  const [myAttLoading, setMyAttLoading] = useState(false);
 
   useEffect(() => {
     const u = getAuthUser();
@@ -38,8 +50,34 @@ export default function StudentDashboardPage() {
       getTrainStatus()
         .then((r) => setModelTrained(r.trained))
         .catch(() => setModelTrained(false));
+      listSubjects()
+        .then((r) => setSubjects(r.subjects || []))
+        .catch(() => setSubjects([]));
     }
   }, [router]);
+
+  const loadMyAttendance = async () => {
+    if (!user?.enrollment) return;
+    setMyAttLoading(true);
+    try {
+      const r = await listAttendance({
+        enrollment: user.enrollment,
+        subject: myAttSubject || undefined,
+        dateFrom: myAttDateFrom || undefined,
+        dateTo: myAttDateTo || undefined,
+        limit: 200,
+      });
+      setMyAttRecords(r.attendance || []);
+    } catch {
+      setMyAttRecords([]);
+    } finally {
+      setMyAttLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.enrollment && myAttDateFrom && myAttDateTo) loadMyAttendance();
+  }, [user?.enrollment, myAttSubject, myAttDateFrom, myAttDateTo]);
 
   const refreshData = async () => {
     if (!user?.enrollment) return;
@@ -124,16 +162,195 @@ export default function StudentDashboardPage() {
         </dl>
       </Card>
 
+      {/* My Attendance */}
+      <Card title="My Attendance">
+        <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+          View your attendance records for a subject and date range.
+        </p>
+        <div className="mb-4 flex flex-wrap gap-3">
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500">Subject</label>
+            <select
+              value={myAttSubject}
+              onChange={(e) => setMyAttSubject(e.target.value)}
+              className="rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
+            >
+              <option value="">All subjects</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500">From</label>
+            <input
+              type="date"
+              value={myAttDateFrom}
+              onChange={(e) => setMyAttDateFrom(e.target.value)}
+              className="rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500">To</label>
+            <input
+              type="date"
+              value={myAttDateTo}
+              onChange={(e) => setMyAttDateTo(e.target.value)}
+              className="rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="flex items-end">
+            <Button onClick={loadMyAttendance} disabled={myAttLoading} variant="outline" size="sm">
+              {myAttLoading ? "Loading..." : "Refresh"}
+            </Button>
+          </div>
+        </div>
+        {myAttSubject ? (
+          <MyAttendanceBySubject
+            records={myAttRecords}
+            subject={myAttSubject}
+            dateFrom={myAttDateFrom}
+            dateTo={myAttDateTo}
+          />
+        ) : (
+          <MyAttendanceAll records={myAttRecords} />
+        )}
+      </Card>
+
       {/* Upload face */}
       <Card title="Add face images">
-        <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-          Capture at least {MIN_IMAGES} clear photos of your face for training.
-          Ensure good lighting and look straight at the camera.
+        <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">
+          Capture at least {MIN_IMAGES} clear photos for best recognition. Use the guided prompts for variety.
+        </p>
+        <p className="mb-4 text-xs text-zinc-500">
+          Tips: Good lighting, face the camera, vary angles slightly. Avoid blurry or dark images.
         </p>
         {error && <p className="mb-2 text-sm text-red-500">{error}</p>}
         {success && <p className="mb-2 text-sm text-emerald-600">{success}</p>}
-        <WebcamCapture onCapture={handleCapture} disabled={uploading} />
+        <WebcamCapture
+          onCapture={handleCapture}
+          disabled={uploading}
+          guided
+          totalSteps={MIN_IMAGES}
+          currentCount={imageCount}
+        />
       </Card>
+    </div>
+  );
+}
+
+function getDatesInRange(from: string, to: string): string[] {
+  const dates: string[] = [];
+  const start = new Date(from);
+  const end = new Date(to);
+  const cur = new Date(start);
+  while (cur <= end) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+function MyAttendanceBySubject({
+  records,
+  subject,
+  dateFrom,
+  dateTo,
+}: {
+  records: { subject: string; date: string; time: string }[];
+  subject: string;
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const dates = getDatesInRange(dateFrom, dateTo);
+  const presentSet = new Set(records.filter((r) => r.subject === subject).map((r) => r.date));
+  const presentCount = dates.filter((d) => presentSet.has(d)).length;
+  const absentCount = dates.length - presentCount;
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        Summary: <span className="text-emerald-600">{presentCount} present</span>
+        {", "}
+        <span className="text-red-600">{absentCount} absent</span>
+      </p>
+      <div className="overflow-x-auto max-h-48 overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
+        <table className="w-full text-sm">
+          <thead className="bg-zinc-50 dark:bg-zinc-900/60 sticky top-0">
+            <tr>
+              <th className="px-3 py-2 text-left">Date</th>
+              <th className="px-3 py-2 text-left">Status</th>
+              <th className="px-3 py-2 text-left">Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dates.map((d) => {
+              const rec = records.find((r) => r.subject === subject && r.date === d);
+              const status = rec ? "Present" : "Absent";
+              return (
+                <tr key={d} className="border-t border-zinc-100 dark:border-zinc-800">
+                  <td className="px-3 py-2">{d}</td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={
+                        status === "Present"
+                          ? "text-emerald-600 font-medium"
+                          : "text-red-600"
+                      }
+                    >
+                      {status}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-zinc-500">{rec?.time ?? "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function MyAttendanceAll({
+  records,
+}: {
+  records: { subject: string; date: string; time: string }[];
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        {records.length} attendance record{records.length !== 1 ? "s" : ""} in range
+      </p>
+      <div className="overflow-x-auto max-h-48 overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
+        <table className="w-full text-sm">
+          <thead className="bg-zinc-50 dark:bg-zinc-900/60 sticky top-0">
+            <tr>
+              <th className="px-3 py-2 text-left">Date</th>
+              <th className="px-3 py-2 text-left">Subject</th>
+              <th className="px-3 py-2 text-left">Time</th>
+              <th className="px-3 py-2 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-3 py-6 text-center text-zinc-500">
+                  No attendance records in selected range
+                </td>
+              </tr>
+            ) : (
+              records.map((r, i) => (
+                <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800">
+                  <td className="px-3 py-2">{r.date}</td>
+                  <td className="px-3 py-2">{r.subject}</td>
+                  <td className="px-3 py-2">{r.time}</td>
+                  <td className="px-3 py-2 text-emerald-600 font-medium">Present</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

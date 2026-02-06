@@ -4,12 +4,46 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "./Button";
 import { Modal } from "./Modal";
 
+const GUIDED_PROMPTS = [
+  "Look straight at the camera",
+  "Keep looking straight",
+  "Slight smile",
+  "Neutral expression",
+  "Straight, good lighting",
+  "Turn head slightly left",
+  "A bit more left",
+  "Back to center",
+  "Turn head slightly right",
+  "A bit more right",
+  "Back to center",
+  "Chin up slightly",
+  "Chin down slightly",
+  "Straight, final shots",
+  "One more clear shot",
+];
+
+function getGuidedPrompt(index: number): string {
+  return GUIDED_PROMPTS[Math.min(index, GUIDED_PROMPTS.length - 1)] ?? "Capture your face";
+}
+
 type WebcamCaptureProps = {
   onCapture: (imageBase64: string) => void;
   disabled?: boolean;
+  guided?: boolean;
+  totalSteps?: number;
+  currentCount?: number;
+  /** "hd" = 1280x720 (better for multi-face), "standard" = 640x480 */
+  resolution?: "standard" | "hd";
 };
 
-export function WebcamCapture({ onCapture, disabled }: WebcamCaptureProps) {
+export function WebcamCapture({
+  onCapture,
+  disabled,
+  guided = false,
+  totalSteps = 15,
+  currentCount = 0,
+  resolution = "standard",
+}: WebcamCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -31,10 +65,12 @@ export function WebcamCapture({ onCapture, disabled }: WebcamCaptureProps) {
   const startCamera = async () => {
     setError("");
     setModalOpen(true);
+    const constraints =
+      resolution === "hd"
+        ? { video: { facingMode: "user", width: 1280, height: 720 } }
+        : { video: { facingMode: "user", width: 640, height: 480 } };
     try {
-      const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: 640, height: 480 },
-      });
+      const s = await navigator.mediaDevices.getUserMedia(constraints);
       setStream(s);
     } catch (e) {
       setError("Could not access camera. Please allow camera permission.");
@@ -90,7 +126,9 @@ export function WebcamCapture({ onCapture, disabled }: WebcamCaptureProps) {
             />
           </div>
           <p className="text-center text-sm text-zinc-500">
-            Position your face in the frame and click Capture
+            {guided && currentCount < totalSteps
+              ? `Step ${currentCount + 1}/${totalSteps}: ${getGuidedPrompt(currentCount)}`
+              : "Position your face in the frame and click Capture"}
           </p>
           <div className="flex gap-3">
             <Button onClick={capture} disabled={disabled} className="flex-1">

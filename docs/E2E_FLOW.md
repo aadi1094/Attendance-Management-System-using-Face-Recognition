@@ -40,9 +40,9 @@ Before teachers can mark attendance, subjects must exist.
 
 1. Login as the **Student** you registered
 2. Go to **Student Dashboard**
-3. In **Add face images**, capture at least **10** clear photos of your face
-4. Use good lighting and look straight at the camera
-5. Each upload shows a success toast; status updates with `Face images: X/10`
+3. In **Add face images**, capture at least **15** clear photos of your face (use the guided prompts for variety)
+4. Use good lighting and follow the on-screen prompts
+5. Each upload shows a success toast; status updates with `Face images: X/15`
 
 ---
 
@@ -50,7 +50,7 @@ Before teachers can mark attendance, subjects must exist.
 
 1. Login as **Admin**
 2. Go to **Train Model** tab
-3. Ensure at least one student has face images (≥10)
+3. Ensure at least one student has face images (≥15)
 4. Click **Train Model**
 5. Wait for success toast: `Model trained. X images, Y students.`
 
@@ -107,6 +107,6 @@ Register (Student) → Add Subjects (Admin) → Upload Face Images (Student)
 | Issue | Solution |
 |-------|----------|
 | Face not detected | Ensure good lighting, look at camera, face fully visible |
-| Face not recognized | Upload more images (10+), retrain model |
-| Training fails | At least one student must have ≥10 face images |
+| Face not recognized | Upload more images (15+), retrain model |
+| Training fails | At least one student must have ≥15 face images |
 | API errors | Check backend logs, ensure MongoDB and backend are running |

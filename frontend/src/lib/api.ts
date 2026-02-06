@@ -139,7 +139,26 @@ export async function listSubjects() {
 export async function listTeachers() {
   const res = await fetch(`${API_BASE}/api/teachers`);
   if (!res.ok) throw new Error("Failed to list teachers");
-  return res.json() as Promise<{ teachers: { id: string; name: string; email: string }[] }>;
+  return res.json() as Promise<{ teachers: { id: string; name: string; email: string; assignedSubjectIds?: string[] }[] }>;
+}
+
+export async function getTeacher(teacherId: string) {
+  const res = await fetch(`${API_BASE}/api/teachers/${teacherId}`);
+  if (!res.ok) throw new Error("Failed to get teacher");
+  return res.json() as Promise<{ id: string; name: string; email: string; assignedSubjectIds: string[] }>;
+}
+
+export async function updateTeacherSubjects(teacherId: string, assignedSubjectIds: string[]) {
+  const res = await fetch(`${API_BASE}/api/teachers/${teacherId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ assignedSubjectIds }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || "Failed to update teacher");
+  }
+  return res.json();
 }
 
 export async function createTeacher(data: { name: string; email: string; password: string }) {
@@ -204,6 +223,9 @@ export async function recordManualAttendance(data: {
 export async function listAttendance(params?: {
   subject?: string;
   date?: string;
+  enrollment?: string;
+  dateFrom?: string;
+  dateTo?: string;
   skip?: number;
   limit?: number;
 }) {
@@ -212,4 +234,37 @@ export async function listAttendance(params?: {
   const res = await fetch(`${API_BASE}/api/attendance${q ? `?${q}` : ""}`);
   if (!res.ok) throw new Error("Failed to list attendance");
   return res.json();
+}
+
+export function getAttendanceExportUrl(params?: {
+  subject?: string;
+  date?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  enrollment?: string;
+}): string {
+  const p = params ? Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== "")) : {};
+  const q = new URLSearchParams(p as Record<string, string>).toString();
+  return `${API_BASE}/api/attendance/export${q ? `?${q}` : ""}`;
+}
+
+export async function downloadAttendanceCsv(params?: {
+  subject?: string;
+  date?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  enrollment?: string;
+}): Promise<void> {
+  const url = getAttendanceExportUrl(params);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to export attendance");
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = "attendance.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(objectUrl);
 }
